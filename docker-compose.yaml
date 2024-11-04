@@ -1,35 +1,40 @@
-version: '3.8'
+version: '3'
 services:
-  server:
+  horilla_server:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - 8000:8000
-    restart: unless-stopped
     environment:
-      DATABASE_URL: "postgres://postgres:postgres@db:5432/horilla"
+      - DATABASE_URL=postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@horilla_postgres:5432/${POSTGRES_DB:-horilla}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-change_this_in_production}
+      - DJANGO_DEBUG=${DJANGO_DEBUG:-False}
+      - DJANGO_ALLOWED_HOSTS=${DOMAIN:-*}
     command: ./entrypoint.sh
+    networks:
+      - proxy_manager
+    restart: always
     depends_on:
-      db:
+      horilla_postgres:
         condition: service_healthy
 
-  db:
+  horilla_postgres:
     image: postgres:16-bullseye
+    container_name: horilla_postgres
     environment:
-      POSTGRES_DB: horilla
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - 5432:5432
-    restart: unless-stopped
+      POSTGRES_DB: ${POSTGRES_DB:-horilla}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
-      - horilla-data:/var/lib/postgresql/data
+      - /media/bigstore/horilla_postgres_data:/var/lib/postgresql/data
+    networks:
+      - proxy_manager
+    restart: always
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres"]
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-volumes:
-  horilla-data:
+networks:
+  proxy_manager:
+    external: true
